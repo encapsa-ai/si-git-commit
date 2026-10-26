@@ -16,6 +16,27 @@ fn temp_config(tag: &str) -> (PathBuf, PathBuf) {
     (dir, config)
 }
 
+fn run_ghsi_with_openai_key(
+    config: &PathBuf,
+    args: &[&str],
+    key: Option<&str>,
+) -> std::process::Output {
+    let mut cmd = Command::new(ghsi_bin());
+    cmd.args(args)
+        .env("SI_GIT_COMMIT_CONFIG", config)
+        .env_remove("SI_GIT_COMMIT_API_KEY")
+        .stdin(Stdio::null());
+    match key {
+        Some(k) => {
+            cmd.env("OPENAI_API_KEY", k);
+        }
+        None => {
+            cmd.env_remove("OPENAI_API_KEY");
+        }
+    }
+    cmd.output().expect("run ghsi")
+}
+
 fn run_ghsi(config: &PathBuf, args: &[&str]) -> std::process::Output {
     Command::new(ghsi_bin())
         .args(args)
@@ -148,6 +169,55 @@ fn cli_config_set_rejects_unknown_key() {
     let out = run_ghsi(&config, &["config", "set", "bogus", "x"]);
     assert!(!out.status.success());
     assert!(stderr(&out).contains("unknown config key"));
+}
+
+#[test]
+fn cli_config_init_reports_found_env_key() {
+    let (dir, config) = temp_config("env-found");
+    let init = run_ghsi_with_openai_key(&config, &["config", "init"], Some("sk-test-1234567890"));
+    assert!(init.status.success(), "stderr: {}", stderr(&init));
+    let text = stdout(&init);
+    assert!(text.contains("OPENAI_API_KEY"), "init was: {text}");
+    assert!(text.contains("found"), "init was: {text}");
+    assert!(text.contains("✓"), "init was: {text}");
+
+    let show = run_ghsi_with_openai_key(&config, &["config"], Some("sk-test-1234567890"));
+    assert!(show.status.success(), "stderr: {}", stderr(&show));
+    assert!(
+        stdout(&show).contains("found in environment"),
+        "show was: {}",
+        stdout(&show)
+    );
+
+    // Changing the model must not copy the environment key into the file.
+    let set = run_ghsi_with_openai_key(
+        &config,
+        &["config", "model", "gpt-5.6-luna"],
+        Some("sk-test-1234567890"),
+    );
+    assert!(set.status.success(), "stderr: {}", stderr(&set));
+    let saved = std::fs::read_to_string(&config).expect("read saved config");
+    assert!(
+        !saved.contains("sk-test-1234567890"),
+        "env key must not be persisted, file was: {saved}"
+    );
+    assert!(saved.contains("gpt-5.6-luna"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn cli_config_init_prompts_for_key_when_env_missing() {
+    let (dir, config) = temp_config("env-missing");
+    let init = run_ghsi_with_openai_key(&config, &["config", "init"], None);
+    assert!(init.status.success(), "stderr: {}", stderr(&init));
+    let text = stdout(&init);
+    assert!(text.contains("Add your API key"), "init was: {text}");
+    assert!(
+        !text.contains("found in your environment"),
+        "init was: {text}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

@@ -295,6 +295,22 @@ fn apply_model_overrides(config: &mut Config, args: &ModelArgs) -> anyhow::Resul
 fn save_config(config: &Config) -> anyhow::Result<std::path::PathBuf> {
     // Save back to the file the user already has, if any, so a
     // hand-created ~/.si-git-commit.toml is updated in place.
+    // Preserve the key stored in the file: a key picked up from the
+    // environment (e.g. system-wide OPENAI_API_KEY) must not be copied
+    // into the settings file just because the model changed.
+    let mut to_save = config.clone();
+    to_save.api_key = Config::stored_api_key().unwrap_or_default();
+    if let Some(existing) = Config::find_existing_path() {
+        to_save.save_to(&existing)?;
+        Ok(existing)
+    } else {
+        Ok(to_save.save()?)
+    }
+}
+
+/// Save exactly what is in `config`, including its API key.
+/// Used only when the user explicitly sets `api_key`.
+fn save_config_verbatim(config: &Config) -> anyhow::Result<std::path::PathBuf> {
     if let Some(existing) = Config::find_existing_path() {
         config.save_to(&existing)?;
         Ok(existing)
@@ -324,20 +340,36 @@ fn run_config(args: ConfigArgs) -> anyhow::Result<()> {
     }
 }
 
-fn mask_key(config: &Config) -> String {
-    // Re-resolve with env so the display reflects the effective key.
-    let mut probe = config.clone();
-    probe.apply_env_overrides();
-    let key = probe.api_key.trim();
-    if key.is_empty() {
-        format!(
-            "not set (set api_key in the settings file or export {})",
-            probe.provider.env_key_name()
-        )
-    } else if key.len() > 8 {
-        format!("set (…{})", &key[key.len() - 4..])
+fn key_tail(key: &str) -> String {
+    let key = key.trim();
+    if key.len() > 4 {
+        format!("…{}", &key[key.len() - 4..])
     } else {
         "set".to_string()
+    }
+}
+
+/// One-line, source-aware API key status for `ghsi config`.
+/// A system-wide key (e.g. `OPENAI_API_KEY` exported from your shell
+/// profile) is used automatically — say so, and explain the override.
+fn api_key_line(config: &Config) -> String {
+    let stored = Config::stored_api_key();
+    let env_found = config.env_api_key();
+    match (stored, env_found) {
+        (Some(key), Some((name, _))) => format!(
+            "set in settings file ({}) — overrides {name} from your environment",
+            key_tail(&key)
+        ),
+        (Some(key), None) => format!("set in settings file ({})", key_tail(&key)),
+        (None, Some((name, value))) => format!(
+            "✓ {name} found in environment ({}) — used automatically; \
+             to use a different key just for ghsi, run `ghsi config set api_key <key>`",
+            key_tail(&value)
+        ),
+        (None, None) => format!(
+            "not set — export {}=<your-key> or run `ghsi config set api_key <key>`",
+            config.provider.env_key_name()
+        ),
     }
 }
 
@@ -361,7 +393,7 @@ fn config_show() -> anyhow::Result<()> {
         "  Base URL:      {}",
         config.base_url.as_deref().unwrap_or("(provider default)")
     );
-    println!("  API key:       {}", mask_key(&config));
+    println!("  API key:       {}", api_key_line(&config));
     println!();
     println!("Change the model without editing this file:");
     println!("  ghsi config model <name>     e.g. ghsi config model gpt-5.6-luna");
@@ -380,10 +412,26 @@ fn config_init() -> anyhow::Result<()> {
     }
     println!();
     println!("Next steps:");
-    println!(
-        "  1. Add your API key: export {}=<your-key>  (or set api_key in the file)",
-        Config::load_or_default().provider.env_key_name()
-    );
+    let config = Config::load_or_default();
+    match config.env_api_key() {
+        Some((name, _)) => {
+            println!(
+                "  1. ✓ {name} found in your environment — used automatically, \
+                 no setup needed."
+            );
+            println!(
+                "     (Optional: use a different key just for ghsi with \
+                 `ghsi config set api_key <key>` — it overrides the environment.)"
+            );
+        }
+        None => {
+            println!(
+                "  1. Add your API key: export {}=<your-key>  \
+                 (or `ghsi config set api_key <key>`)",
+                config.provider.env_key_name()
+            );
+        }
+    }
     println!("  2. Pick a model:     ghsi config model");
     println!("  3. Commit with AI:   ghsi");
     Ok(())
@@ -553,7 +601,11 @@ fn config_set(key: &str, value: &str) -> anyhow::Result<()> {
             );
         }
     }
-    let path = save_config(&config)?;
+    let path = if key == "api_key" {
+        save_config_verbatim(&config)?
+    } else {
+        save_config(&config)?
+    };
     println!("✓ Set {key} in {}", path.display());
     config_show()?;
     Ok(())

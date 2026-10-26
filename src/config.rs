@@ -282,6 +282,36 @@ impl Config {
         }
     }
 
+    /// API key found in the environment, as `(variable name, value)`.
+    /// Checks `SI_GIT_COMMIT_API_KEY` first, then the provider variable
+    /// (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY`). This is how a system-wide
+    /// key exported from your shell profile is picked up automatically.
+    pub fn env_api_key(&self) -> Option<(String, String)> {
+        for name in ["SI_GIT_COMMIT_API_KEY", self.provider.env_key_name()] {
+            if let Ok(v) = env::var(name) {
+                let v = v.trim().to_string();
+                if !v.is_empty() {
+                    return Some((name.to_string(), v));
+                }
+            }
+        }
+        None
+    }
+
+    /// API key stored in the settings file itself, ignoring the
+    /// environment. `None` when there is no file or no key in it.
+    pub fn stored_api_key() -> Option<String> {
+        let path = Self::find_existing_path()?;
+        let raw = fs::read_to_string(path).ok()?;
+        let cfg: Config = toml::from_str(&raw).ok()?;
+        let key = cfg.api_key.trim().to_string();
+        if key.is_empty() {
+            None
+        } else {
+            Some(key)
+        }
+    }
+
     /// Resolve the effective API key or return an error that points at
     /// both the settings file and the env var.
     pub fn require_api_key(&self) -> Result<String> {

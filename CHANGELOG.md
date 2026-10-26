@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Dynamic API-key instructions: `ghsi config init` and `ghsi config`
+  now detect a system-wide `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` (or
+  `SI_GIT_COMMIT_API_KEY`) and report "✓ … found in environment — used
+  automatically", with an optional `ghsi config set api_key` override
+  note. Without an environment key they show the export instruction.
+
+### Fixed
+
+- Changing the model or other settings no longer copies an
+  environment-sourced API key into the settings TOML; only an explicit
+  `ghsi config set api_key <key>` writes a key to the file.
+
 ## [0.1.0] - 2026-10-26
 
 Initial release. A modern replacement for the orphaned `ghit`/`helix`

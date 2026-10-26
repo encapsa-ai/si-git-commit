@@ -58,7 +58,11 @@ cargo install --path .
 # 1. Create your settings file (ghsi prints exactly where it lives)
 ghsi config init
 
-# 2. Add your API key (or set `api_key` in the settings file)
+# 2. API key: if OPENAI_API_KEY is already exported (e.g. from ~/.zshrc),
+#    ghsi finds it automatically — `ghsi config init` will show
+#    "✓ OPENAI_API_KEY found" and there is nothing to do.
+#    Otherwise export it, or set a ghsi-specific key that overrides
+#    the environment with: ghsi config set api_key <your-key>
 export OPENAI_API_KEY=<your-key>
 
 # 3. Pick a model — interactively, or directly:
