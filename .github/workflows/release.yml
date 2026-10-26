@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
 
+# Creating a GitHub Release and uploading assets requires write access.
+# Some repositories default the Actions GITHUB_TOKEN to read-only, which
+# causes softprops/action-gh-release to fail with HTTP 403.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
