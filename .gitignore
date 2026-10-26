@@ -1,0 +1,38 @@
+# Rust build artifacts
+/target/
+
+# Cargo package artifacts
+*.crate
+**/*.rs.bk
+Cargo.toml.orig
+
+# IDE / editor
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+.fleet/
+*.swp
+*.swo
+*~
+.vim/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Coverage / benchmarks
+/coverage/
+*.profraw
+*.profdata
+lcov.info
+
+# Secrets — never commit credentials or local config with API keys
+.env
+.env.local
+*.pem
+*.key
+
+# Local ghsi config (contains API keys when created in-repo by mistake)
+.si-git-commit.toml
