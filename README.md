@@ -1,4 +1,6 @@
-# si-git-commit — Super Intelligent Git Commit
+# Super Intelligent Git Commits
+
+<img width="3840" height="2160" alt="super-intelligent-git-commits-optimized" src="https://github.com/user-attachments/assets/2150f5c1-c665-4d41-98b4-93a784f8e9af" />
 
 [![Crates.io](https://img.shields.io/crates/v/si-git-commit.svg)](https://crates.io/crates/si-git-commit)
 [![Documentation](https://docs.rs/si-git-commit/badge.svg)](https://docs.rs/si-git-commit)
